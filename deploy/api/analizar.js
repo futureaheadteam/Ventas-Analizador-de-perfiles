@@ -48,7 +48,13 @@ async function atender(req, res) {
   }
   const pass = String(req.headers['x-team-password'] || '').trim();
   if (pass !== esperada) {
-    return res.status(401).send('No autorizado');
+    // TEMPORAL para diagnóstico: muestra la "forma" de cada contraseña sin revelarla
+    // (A = mayúscula, a = minúscula, 9 = número, * = otro símbolo).
+    const forma = s => s.replace(/[A-ZÑ]/g, 'A').replace(/[a-zñ]/g, 'a').replace(/[0-9]/g, '9').replace(/[^Aa9]/g, '*');
+    return res.status(403).send(
+      `Contraseña incorrecta. Escribiste ${pass.length} caracteres con forma "${forma(pass)}"; ` +
+      `Vercel tiene ${esperada.length} caracteres con forma "${forma(esperada)}".`
+    );
   }
 
   let body = req.body;

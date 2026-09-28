@@ -27,10 +27,25 @@ export default async function handler(req, res) {
 }
 
 async function atender(req, res) {
+  const esperada = (process.env.TEAM_PASSWORD || '').trim();
+
+  // Diagnóstico: abrir /api/analizar en el navegador muestra si las variables están cargadas
+  // (nunca muestra sus valores).
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      TEAM_PASSWORD_cargada: !!esperada,
+      TEAM_PASSWORD_tenia_espacios: esperada !== (process.env.TEAM_PASSWORD || ''),
+      GEMINI_API_KEY_cargada: !!process.env.GEMINI_API_KEY,
+      entorno: process.env.VERCEL_ENV || 'desconocido'
+    });
+  }
   if (req.method !== 'POST') return res.status(405).send('Método no permitido');
 
-  const pass = req.headers['x-team-password'] || '';
-  if (!process.env.TEAM_PASSWORD || pass !== process.env.TEAM_PASSWORD) {
+  if (!esperada) {
+    return res.status(500).send('Falta la variable TEAM_PASSWORD en Vercel (entorno Production). Agregala y hacé Redeploy.');
+  }
+  const pass = String(req.headers['x-team-password'] || '').trim();
+  if (pass !== esperada) {
     return res.status(401).send('No autorizado');
   }
 

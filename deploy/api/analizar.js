@@ -17,6 +17,16 @@ function aGemini(m) {
 }
 
 export default async function handler(req, res) {
+  // Cualquier error inesperado se muestra en la web en vez de romper la función.
+  try {
+    await atender(req, res);
+  } catch (e) {
+    console.error(e);
+    if (!res.headersSent) res.status(500).send('Error interno: ' + (e && e.message));
+  }
+}
+
+async function atender(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Método no permitido');
 
   const pass = req.headers['x-team-password'] || '';
@@ -24,7 +34,9 @@ export default async function handler(req, res) {
     return res.status(401).send('No autorizado');
   }
 
-  const { system, messages } = req.body || {};
+  let body = req.body;
+  if (typeof body === 'string') body = JSON.parse(body);
+  const { system, messages } = body || {};
   if (!Array.isArray(messages)) return res.status(400).send('Pedido inválido');
 
   // Modelo fijado acá para que nadie lo cambie desde el navegador.

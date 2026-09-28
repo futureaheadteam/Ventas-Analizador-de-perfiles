@@ -35,8 +35,6 @@ async function atender(req, res) {
     return res.status(200).json({
       TEAM_PASSWORD_cargada: !!esperada,
       TEAM_PASSWORD_tenia_espacios: esperada !== (process.env.TEAM_PASSWORD || ''),
-      TEAM_PASSWORD_cantidad_de_caracteres: esperada.length,
-      TEAM_PASSWORD_parece_una_clave_pegada: /^(sk_|sk-|AQ\.|AIza)/.test(esperada),
       GEMINI_API_KEY_cargada: !!process.env.GEMINI_API_KEY,
       entorno: process.env.VERCEL_ENV || 'desconocido'
     });
@@ -48,13 +46,7 @@ async function atender(req, res) {
   }
   const pass = String(req.headers['x-team-password'] || '').trim();
   if (pass !== esperada) {
-    // TEMPORAL para diagnóstico: muestra la "forma" de cada contraseña sin revelarla
-    // (A = mayúscula, a = minúscula, 9 = número, * = otro símbolo).
-    const forma = s => s.replace(/[A-ZÑ]/g, 'A').replace(/[a-zñ]/g, 'a').replace(/[0-9]/g, '9').replace(/[^Aa9]/g, '*');
-    return res.status(403).send(
-      `Contraseña incorrecta. Escribiste ${pass.length} caracteres con forma "${forma(pass)}"; ` +
-      `Vercel tiene ${esperada.length} caracteres con forma "${forma(esperada)}".`
-    );
+    return res.status(401).send('No autorizado');
   }
 
   let body = req.body;
@@ -80,7 +72,11 @@ async function atender(req, res) {
     });
     const data = await r.json();
     if (!r.ok) {
-      return res.status(r.status).json({ type: 'error', error: { message: data.error?.message || 'Error de Gemini' } });
+      // 429 = límite gratis de Gemini (la web lo muestra como "límite de análisis").
+      // Cualquier otro error se devuelve como 502 para que la web no lo confunda
+      // con "contraseña incorrecta" (401) y muestre el motivo real.
+      const status = r.status === 429 ? 429 : 502;
+      return res.status(status).send(`Gemini respondió ${r.status}: ${data.error?.message || 'error desconocido'}`);
     }
     const text = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
     // Mismo formato que devuelve la API de Claude.

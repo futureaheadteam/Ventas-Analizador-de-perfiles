@@ -55,22 +55,30 @@ async function atender(req, res) {
   if (!Array.isArray(messages)) return res.status(400).send('Pedido inválido');
 
   // Modelo fijado acá para que nadie lo cambie desde el navegador.
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+
+  const pedido = JSON.stringify({
+    systemInstruction: typeof system === 'string' ? { parts: [{ text: system.slice(0, 20000) }] } : undefined,
+    contents: messages.slice(-4).map(aGemini),
+    generationConfig: { maxOutputTokens: 3000 }
+  });
 
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': process.env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        systemInstruction: typeof system === 'string' ? { parts: [{ text: system.slice(0, 20000) }] } : undefined,
-        contents: messages.slice(-4).map(aGemini),
-        generationConfig: { maxOutputTokens: 3000 }
-      })
-    });
-    const data = await r.json();
+    // Si Gemini está saturado (503/500), reintenta solo hasta 4 veces esperando un poco más cada vez.
+    let r, data;
+    for (let intento = 1; intento <= 4; intento++) {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': process.env.GEMINI_API_KEY
+        },
+        body: pedido
+      });
+      data = await r.json();
+      if (r.status !== 503 && r.status !== 500) break;
+      if (intento < 4) await new Promise(ok => setTimeout(ok, intento * 3000));
+    }
     if (!r.ok) {
       // 429 = límite gratis de Gemini (la web lo muestra como "límite de análisis").
       // Cualquier otro error se devuelve como 502 para que la web no lo confunda

@@ -35,6 +35,8 @@ async function atender(req, res) {
     return res.status(200).json({
       TEAM_PASSWORD_cargada: !!esperada,
       TEAM_PASSWORD_tenia_espacios: esperada !== (process.env.TEAM_PASSWORD || ''),
+      TEAM_PASSWORD_cantidad_de_caracteres: esperada.length,
+      TEAM_PASSWORD_parece_una_clave_pegada: /^(sk_|sk-|AQ\.|AIza)/.test(esperada),
       GEMINI_API_KEY_cargada: !!process.env.GEMINI_API_KEY,
       entorno: process.env.VERCEL_ENV || 'desconocido'
     });
